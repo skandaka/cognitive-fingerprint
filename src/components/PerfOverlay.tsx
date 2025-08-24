@@ -13,7 +13,7 @@ export const PerfOverlay: FC = () => {
   const lastBusy = useRef<number>(performance.now());
 
   useEffect(()=>{
-    let rafId: number; let interval: number;
+    let rafId: number;
     const loop = (t:number)=>{
       if (last.current !== null){
         const dt = t - last.current;
@@ -26,7 +26,7 @@ export const PerfOverlay: FC = () => {
       rafId = requestAnimationFrame(loop);
     };
     rafId = requestAnimationFrame(loop);
-    interval = window.setInterval(()=>{
+    const interval = window.setInterval(()=>{
       const now = performance.now();
       const elapsed = now - (lastBusy.current||now);
       const fpsCalc = frames.current * 1000 / elapsed;

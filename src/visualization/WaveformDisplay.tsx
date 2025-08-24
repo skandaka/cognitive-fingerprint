@@ -6,11 +6,11 @@ export const WaveformDisplay: React.FC = () => {
 
   useEffect(() => {
     // Mock data stream (replace with real keystroke intervals)
+    let currentData: number[] = [];
     const interval = setInterval(() => {
-      setData(d => {
-        const next = [...d.slice(-199), 20 + Math.random() * 80 + (Math.random() < 0.05 ? Math.random() * 120 : 0)];
-        return next;
-      });
+      const newValue = 20 + Math.random() * 80 + (Math.random() < 0.05 ? Math.random() * 120 : 0);
+      currentData = [...currentData.slice(-199), newValue];
+      setData([...currentData]);
     }, 50);
     return () => clearInterval(interval);
   }, []);

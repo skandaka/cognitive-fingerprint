@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import { NeurologicalSimulator, BaselinePattern } from '../analysis/NeurologicalSimulator';
 import { syntheticDataGenerator } from './SyntheticData';
 import { celebrityCases, caseStudyAnalyzer } from './CaseStudies';
@@ -20,11 +22,12 @@ export const TimeMachine = () => {
   const [selectedCelebrity, setSelectedCelebrity] = useState('michael_j_fox');
   const [showProjection, setShowProjection] = useState(false);
 
-  const simulator = useMemo(() => new NeurologicalSimulator(), []);
-  const baseline = useMemo(() => simulator.generateHealthyBaseline(45), [simulator]);
+  // Use simple memoization approach
+  const simulator = new NeurologicalSimulator();
+  const baseline = simulator.generateHealthyBaseline(45);
 
   // Generate degraded pattern based on current settings
-  const degradedPattern = useMemo(() => {
+  const degradedPattern = (() => {
     switch (condition) {
       case 'parkinsons':
         return simulator.parkinsonianDegradation(baseline, years);
@@ -37,10 +40,10 @@ export const TimeMachine = () => {
       default:
         return simulator.parkinsonianDegradation(baseline, years);
     }
-  }, [simulator, baseline, condition, years]);
+  })();
 
   // Generate timeline events for current progression
-  const timelineEvents = useMemo(() => {
+  const timelineEvents = (() => {
     const events: TimelineEvent[] = [];
 
     // Add events based on condition and progression
@@ -72,13 +75,13 @@ export const TimeMachine = () => {
     };
 
     return eventMap[condition].filter(event => event.year <= years);
-  }, [condition, years]);
+  })();
 
   // Get celebrity case data if in celebrity mode
-  const celebrityData = useMemo(() => {
+  const celebrityData = (() => {
     if (viewMode !== 'celebrity') return null;
     return caseStudyAnalyzer.simulateSystemPerformance(selectedCelebrity as keyof typeof celebrityCases);
-  }, [viewMode, selectedCelebrity]);
+  })();
 
   const formatBiomarkerValue = (baseline: number, current: number, unit: string = '', isInverse: boolean = false) => {
     const change = isInverse ? ((baseline - current) / baseline) * 100 : ((current - baseline) / baseline) * 100;

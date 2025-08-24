@@ -42,7 +42,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activate event - cleanup old caches
+// Activate event - cleanup old caches and initialize background processing
 self.addEventListener('activate', event => {
   console.log('Service Worker: Activating...');
   
@@ -64,6 +64,18 @@ self.addEventListener('activate', event => {
       .then(() => {
         console.log('Service Worker: Claiming clients');
         return self.clients.claim();
+      })
+      .then(() => {
+        // Initialize background keystroke processing
+        console.log('🧠 SW: Initializing background processing...');
+        return loadBackgroundData();
+      })
+      .then(() => {
+        initBackgroundProcessing();
+        console.log('🧠 SW: Background processing ready');
+      })
+      .catch(error => {
+        console.error('🧠 SW: Activation failed', error);
       })
   );
 });
@@ -240,6 +252,94 @@ async function performBackgroundAnalysis() {
   }
 }
 
+// Background keystroke processing data
+let backgroundProcessing = {
+  keystrokeData: [],
+  riskHistory: [],
+  lastProcessed: Date.now(),
+  enabled: true,
+  processingInterval: null
+};
+
+// Initialize background processing
+function initBackgroundProcessing() {
+  if (backgroundProcessing.processingInterval) return;
+  
+  backgroundProcessing.processingInterval = setInterval(() => {
+    if (backgroundProcessing.enabled && backgroundProcessing.keystrokeData.length > 10) {
+      processBackgroundKeystrokes();
+      notifyAllClients();
+    }
+  }, 10000); // Process every 10 seconds
+  
+  console.log('🧠 SW: Background keystroke processing initialized');
+}
+
+// Process keystroke data in background
+function processBackgroundKeystrokes() {
+  const recent = backgroundProcessing.keystrokeData.slice(-50);
+  if (recent.length < 5) return;
+  
+  // Calculate basic statistics
+  const dwellTimes = recent.map(k => k.meanDwell || 0).filter(d => d > 0);
+  const flightTimes = recent.map(k => k.meanFlight || 0).filter(f => f > 0);
+  
+  if (dwellTimes.length > 3 && flightTimes.length > 3) {
+    const avgDwell = dwellTimes.reduce((a, b) => a + b, 0) / dwellTimes.length;
+    const avgFlight = flightTimes.reduce((a, b) => a + b, 0) / flightTimes.length;
+    
+    // Simple risk calculation based on timing patterns
+    const dwellVariance = dwellTimes.reduce((sum, d) => sum + Math.pow(d - avgDwell, 2), 0) / dwellTimes.length;
+    const riskScore = Math.min(0.9, Math.max(0.1, dwellVariance / (avgDwell * 10)));
+    
+    const riskData = {
+      risk: riskScore,
+      confidence: Math.min(1, recent.length / 30),
+      timestamp: Date.now(),
+      source: 'background_sw',
+      sampleCount: recent.length,
+      avgDwell,
+      avgFlight
+    };
+    
+    backgroundProcessing.riskHistory.push(riskData);
+    
+    // Keep last 500 entries
+    if (backgroundProcessing.riskHistory.length > 500) {
+      backgroundProcessing.riskHistory = backgroundProcessing.riskHistory.slice(-500);
+    }
+    
+    console.log('🧠 SW: Background processing complete', {
+      riskScore: riskScore.toFixed(3),
+      samples: recent.length,
+      avgDwell: avgDwell.toFixed(1)
+    });
+    
+    // Store processed data persistently
+    storeBackgroundData();
+  }
+  
+  backgroundProcessing.lastProcessed = Date.now();
+}
+
+// Notify all clients about background updates
+function notifyAllClients() {
+  self.clients.matchAll().then(clients => {
+    const latestRisk = backgroundProcessing.riskHistory[backgroundProcessing.riskHistory.length - 1];
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'BACKGROUND_KEYSTROKE_UPDATE',
+        data: {
+          lastProcessed: backgroundProcessing.lastProcessed,
+          keystrokeCount: backgroundProcessing.keystrokeData.length,
+          riskCount: backgroundProcessing.riskHistory.length,
+          latestRisk
+        }
+      });
+    });
+  });
+}
+
 // Message handling from clients
 self.addEventListener('message', event => {
   const { type, data } = event.data;
@@ -263,6 +363,47 @@ self.addEventListener('message', event => {
       storeAnalysisData(data).then(() => {
         event.ports[0].postMessage({ success: true });
       });
+      break;
+      
+    // NEW: Background keystroke processing
+    case 'UPDATE_KEYSTROKE_DATA':
+      console.log('🧠 SW: Received keystroke data update');
+      backgroundProcessing.keystrokeData.push({
+        ...data,
+        timestamp: Date.now(),
+        source: 'client'
+      });
+      // Keep last 200 entries
+      if (backgroundProcessing.keystrokeData.length > 200) {
+        backgroundProcessing.keystrokeData = backgroundProcessing.keystrokeData.slice(-200);
+      }
+      break;
+      
+    case 'GET_BACKGROUND_DATA':
+      event.ports[0].postMessage({
+        type: 'BACKGROUND_DATA_RESPONSE',
+        data: {
+          keystrokeCount: backgroundProcessing.keystrokeData.length,
+          riskHistory: backgroundProcessing.riskHistory,
+          lastProcessed: backgroundProcessing.lastProcessed,
+          enabled: backgroundProcessing.enabled
+        }
+      });
+      break;
+      
+    case 'ENABLE_BACKGROUND_PROCESSING':
+      backgroundProcessing.enabled = true;
+      initBackgroundProcessing();
+      console.log('🧠 SW: Background processing enabled');
+      break;
+      
+    case 'DISABLE_BACKGROUND_PROCESSING':
+      backgroundProcessing.enabled = false;
+      if (backgroundProcessing.processingInterval) {
+        clearInterval(backgroundProcessing.processingInterval);
+        backgroundProcessing.processingInterval = null;
+      }
+      console.log('🧠 SW: Background processing disabled');
       break;
       
     default:
@@ -344,6 +485,84 @@ async function clearAllCaches() {
       .filter(cacheName => cacheName.startsWith('cognitive-fingerprint-'))
       .map(cacheName => caches.delete(cacheName))
   );
+}
+
+// Store background processing data
+async function storeBackgroundData() {
+  try {
+    const request = indexedDB.open('CognitiveFingerprint', 1);
+    
+    return new Promise((resolve, reject) => {
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction(['background'], 'readwrite');
+        const store = transaction.objectStore('background');
+        
+        store.put({
+          id: 'current',
+          keystrokeData: backgroundProcessing.keystrokeData,
+          riskHistory: backgroundProcessing.riskHistory,
+          lastProcessed: backgroundProcessing.lastProcessed,
+          timestamp: Date.now()
+        });
+        
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('background')) {
+          db.createObjectStore('background', { keyPath: 'id' });
+        }
+      };
+    });
+  } catch (error) {
+    console.error('🧠 SW: Failed to store background data', error);
+  }
+}
+
+// Load background processing data on startup
+async function loadBackgroundData() {
+  try {
+    const request = indexedDB.open('CognitiveFingerprint', 1);
+    
+    return new Promise((resolve, reject) => {
+      request.onerror = () => {
+        console.log('🧠 SW: No existing background data');
+        resolve();
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains('background')) {
+          resolve();
+          return;
+        }
+        
+        const transaction = db.transaction(['background'], 'readonly');
+        const store = transaction.objectStore('background');
+        const getRequest = store.get('current');
+        
+        getRequest.onsuccess = () => {
+          const result = getRequest.result;
+          if (result) {
+            backgroundProcessing.keystrokeData = result.keystrokeData || [];
+            backgroundProcessing.riskHistory = result.riskHistory || [];
+            backgroundProcessing.lastProcessed = result.lastProcessed || Date.now();
+            console.log('🧠 SW: Loaded background data', {
+              keystrokes: backgroundProcessing.keystrokeData.length,
+              risks: backgroundProcessing.riskHistory.length
+            });
+          }
+          resolve();
+        };
+        getRequest.onerror = () => resolve();
+      };
+    });
+  } catch (error) {
+    console.error('🧠 SW: Failed to load background data', error);
+  }
 }
 
 // Push notification handling (for research updates, not medical alerts)

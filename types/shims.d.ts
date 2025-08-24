@@ -2,7 +2,8 @@
 declare module 'react' {
   export type ReactNode = any;
   export interface FC<P = any> { (props: P & { children?: ReactNode }): any; }
-  export function useState<T=any>(init?: T): [T, (v:T)=>void];
+  // Expanded useState typing to support functional updates
+  export function useState<T=any>(init?: T): [T, (v: T | ((prev: T) => T)) => void];
   export function useEffect(cb:()=>any, deps?: any[]): void;
   export function useRef<T=any>(v?:T): { current: T };
   export function useContext<T=any>(ctx:any): T;

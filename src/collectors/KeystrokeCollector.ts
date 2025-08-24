@@ -32,6 +32,8 @@ export interface KeystrokeAnalyticsSummary {
 
 type SummaryListener = (summary: KeystrokeAnalyticsSummary) => void;
 
+import { createComponentLogger } from '../utils/Logger';
+
 export class KeystrokeCollector {
   private active: Map<string, KeystrokeEvent> = new Map();
   private history: KeystrokeEvent[] = [];
@@ -42,16 +44,25 @@ export class KeystrokeCollector {
   private correctionKeys = new Set(['Backspace', 'Delete']);
   private leftHandKeys = new Set(['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB']);
   private rightHandKeys = new Set(['KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyN', 'KeyM']);
+  private logger = createComponentLogger('KeystrokeCollector');
 
   start() {
     if (typeof window === 'undefined') return;
+    // Use capture phase and passive: false to ensure we catch all events
+    document.addEventListener('keydown', this.handleDown, { capture: true, passive: false });
+    document.addEventListener('keyup', this.handleUp, { capture: true, passive: false });
+    
+    // Also listen on window as backup
     window.addEventListener('keydown', this.handleDown, true);
     window.addEventListener('keyup', this.handleUp, true);
-    console.log('KeystrokeCollector: Event listeners attached');
+    
+    this.logger.info('Event listeners attached with background support');
   }
 
   stop() {
     if (typeof window === 'undefined') return;
+    document.removeEventListener('keydown', this.handleDown, true);
+    document.removeEventListener('keyup', this.handleUp, true);
     window.removeEventListener('keydown', this.handleDown, true);
     window.removeEventListener('keyup', this.handleUp, true);
   }
@@ -75,7 +86,11 @@ export class KeystrokeCollector {
         digraph,
         trigraph
       });
-      console.log('KeyDown:', e.code);
+      this.logger.debug('KeyDown event', { 
+        code: e.code, 
+        hidden: document.hidden,
+        timestamp: t 
+      });
     }
   };
 
@@ -87,10 +102,19 @@ export class KeystrokeCollector {
       rec.dwell = t - rec.downTime;
       this.history.push(rec);
       this.active.delete(e.code);
-      console.log('KeyUp:', e.code, 'History length:', this.history.length);
+      this.logger.debug('KeyUp event', { 
+        code: e.code, 
+        dwell: rec.dwell,
+        historyLength: this.history.length,
+        hidden: document.hidden,
+        timestamp: t
+      });
       const summary = this.analyzeRecent();
       if (summary) {
-        console.log('Publishing summary with', summary.sample, 'samples');
+        this.logger.debug('Publishing keystroke summary', { 
+          sampleCount: summary.sample,
+          hidden: document.hidden
+        });
         this.publish(summary);
       }
     }
@@ -98,7 +122,8 @@ export class KeystrokeCollector {
 
   private analyzeRecent(): KeystrokeAnalyticsSummary | null {
     const recent = this.history.slice(-300);
-    if (recent.length < 5) return null; // Reduced threshold for better demo experience
+    // Require at least 1 event; after that always compute to keep sample count progressing.
+    if (recent.length === 0) return null;
 
     const dwells = recent.map(r => r.dwell || 0);
     const flights: number[] = [];

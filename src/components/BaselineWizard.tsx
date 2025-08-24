@@ -16,11 +16,10 @@ export const BaselineWizard = () => {
 
   useEffect(()=>{
     if (baselineKeystroke) return;
-    if (keystroke) {
-      setProgress(Math.min(1, keystroke.sample / targetSamples));
-      if (keystroke.sample >= targetSamples) setStep(3);
-    }
-  }, [keystroke, baselineKeystroke, targetSamples]);
+    const sampleCount = keystroke?.sample || 0;
+    setProgress(Math.min(1, sampleCount / targetSamples));
+    if (sampleCount >= targetSamples && step < 3) setStep(3);
+  }, [keystroke?.sample, baselineKeystroke, targetSamples, step]);
 
   // Don't render until mounted to avoid hydration mismatch
   if (!mounted || baselineKeystroke) return null;
@@ -43,7 +42,7 @@ export const BaselineWizard = () => {
             <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
               <h4 className="font-semibold text-yellow-300 mb-2">💡 What to do:</h4>
               <p className="text-gray-300 text-xs">
-                After clicking "Begin", simply type anywhere in your browser - in this page, in text fields, 
+                After clicking &quot;Begin&quot;, simply type anywhere in your browser - in this page, in text fields,
                 or even in other tabs. The system captures your natural typing rhythm in the background.
                 You can continue your normal work while calibration runs.
               </p>
@@ -56,7 +55,7 @@ export const BaselineWizard = () => {
             <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
               <p className="text-green-300 text-sm font-semibold mb-2">🎯 Calibration Active</p>
               <p className="text-gray-300 text-xs">
-                Start typing anywhere (in this window, text fields, or other browser tabs). 
+                Start typing anywhere (in this window, text fields, or other browser tabs).
                 The system is listening and will capture your natural patterns automatically.
               </p>
             </div>
@@ -69,8 +68,8 @@ export const BaselineWizard = () => {
                 <div className="h-full bg-gradient-to-r from-neuro-accent to-neuro-accent2 transition-all duration-300" style={{ width: `${(progress*100).toFixed(1)}%` }} />
               </div>
               <div className="text-xs text-gray-400">
-                {keystroke?.sample ? 
-                  `Great! Keep typing normally. ${Math.max(0, targetSamples - keystroke.sample)} more keystrokes needed.` : 
+                {keystroke?.sample ?
+                  `Great! Keep typing normally. ${Math.max(0, targetSamples - keystroke.sample)} more keystrokes needed.` :
                   'Waiting for you to start typing...'
                 }
               </div>
@@ -100,7 +99,7 @@ export const BaselineWizard = () => {
                 </ul>
               </div>
               <p className="text-center text-gray-500 text-[10px] mt-3">
-                These patterns create a unique "cognitive fingerprint" that can detect changes over time.
+                These patterns create a unique &quot;cognitive fingerprint&quot; that can detect changes over time.
               </p>
             </div>
             <button onClick={()=>setStep(1)} className="px-3 py-2 rounded bg-neuro-accent/20 hover:bg-neuro-accent/30">Back to Calibration</button>
@@ -112,7 +111,7 @@ export const BaselineWizard = () => {
               <div className="text-green-400 text-2xl mb-2">✅</div>
               <h3 className="font-semibold text-green-300 mb-2">Calibration Complete!</h3>
               <p className="text-gray-300 text-xs">
-                Your personal baseline has been established. The system will now monitor for 
+                Your personal baseline has been established. The system will now monitor for
                 deviations &gt;2.5σ from your normal patterns that may indicate neurological changes.
               </p>
             </div>

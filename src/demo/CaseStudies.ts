@@ -365,7 +365,7 @@ export class CaseStudyAnalyzer {
       age: number;
       description: string;
       biomarkerEstimate?: string;
-      significanceLogo: "symptom" | "diagnosis" | "treatment" | "milestone" | "research";
+      significanceLogo: "symptom" | "diagnosis" | "treatment" | "milestone" | "research" | "advocacy";
     }>;
   } {
     const case_ = celebrityCases[caseName];

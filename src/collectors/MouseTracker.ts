@@ -19,17 +19,35 @@ export class MouseTracker {
 
   start() {
     if (typeof window === 'undefined') return;
+    // Use both document and window to ensure we catch events
+    document.addEventListener('mousemove', this.handleMove, { passive: true, capture: true });
     window.addEventListener('mousemove', this.handleMove, { passive: true });
+    
+    // Add click tracking for better activity detection
+    document.addEventListener('click', this.handleClick, { passive: true, capture: true });
+    window.addEventListener('click', this.handleClick, { passive: true });
   }
   stop() {
     if (typeof window === 'undefined') return;
+    document.removeEventListener('mousemove', this.handleMove);
     window.removeEventListener('mousemove', this.handleMove);
+    document.removeEventListener('click', this.handleClick);
+    window.removeEventListener('click', this.handleClick);
     if (this.raf) cancelAnimationFrame(this.raf);
   }
   onMetrics(l:(m:MouseMetrics)=>void){ this.listeners.add(l);}
   offMetrics(l:(m:MouseMetrics)=>void){ this.listeners.delete(l);}
 
   private handleMove = (e: MouseEvent) => {
+    const t = performance.now();
+    const sample: MouseSample = { t, x: e.clientX, y: e.clientY };
+    this.samples.push(sample);
+    if (!this.last) this.last = sample;
+    if (!this.raf) this.raf = requestAnimationFrame(()=> this.compute());
+  };
+
+  private handleClick = (e: MouseEvent) => {
+    // Treat clicks as high-priority mouse samples for activity detection
     const t = performance.now();
     const sample: MouseSample = { t, x: e.clientX, y: e.clientY };
     this.samples.push(sample);

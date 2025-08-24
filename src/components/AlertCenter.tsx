@@ -8,26 +8,32 @@ interface Alert { id: string; ts: number; message: string; severity: 'info'|'war
 export const AlertCenter = () => {
   const { keystroke, risk, anomaly, confidence } = useCognitive();
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const push = (a: Omit<Alert,'id'|'ts'>) => setAlerts(prev => [...prev.slice(-24), { ...a, id: Math.random().toString(36).slice(2), ts: Date.now() }]);
+
+  const pushAlert = React.useCallback((alert: Omit<Alert,'id'|'ts'>) => {
+    setAlerts((prev: Alert[]): Alert[] => {
+      const newAlert: Alert = { ...alert, id: Math.random().toString(36).slice(2), ts: Date.now() };
+      return [...prev.slice(-23), newAlert];
+    });
+  }, []);
 
   useEffect(()=>{
     if (!keystroke) return;
     if (keystroke.varianceDwell > 200 && (confidence??0) > 0.8) {
-      push({ message: 'Elevated dwell time variability detected', severity: 'warn', confidence });
+      pushAlert({ message: 'Elevated dwell time variability detected', severity: 'warn', confidence });
     }
-  }, [keystroke, confidence]);
+  }, [keystroke, confidence, pushAlert]);
 
   useEffect(()=>{
     if (anomaly && anomaly > 0.8) {
-      push({ message: 'Multi-modal anomaly spike', severity: 'high', confidence });
+      pushAlert({ message: 'Multi-modal anomaly spike', severity: 'high', confidence });
     }
-  }, [anomaly, confidence]);
+  }, [anomaly, confidence, pushAlert]);
 
   useEffect(()=>{
     if (risk && risk > 0.6 && (confidence??0)>0.85) {
-      push({ message: 'Sustained elevated composite risk index', severity: 'warn', confidence });
+      pushAlert({ message: 'Sustained elevated composite risk index', severity: 'warn', confidence });
     }
-  }, [risk, confidence]);
+  }, [risk, confidence, pushAlert]);
 
   return (
     <div className="bg-neuro-surface p-4 rounded-xl text-xs space-y-2">

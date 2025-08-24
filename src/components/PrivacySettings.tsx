@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useCognitive } from '../state/GlobalState';
 
 export const PrivacySettings = () => {
-  const { dpEpsilon, setDpEpsilon, noiseActive, toggleNoise, setPassphrase } = useCognitive();
+  const { dpEpsilon, setDpEpsilon, noiseActive, toggleNoise, setPassphrase, aiConsent, setAiConsent } = useCognitive();
   const [localPass, setLocalPass] = useState('');
   return (
     <div className="bg-neuro-surface rounded-xl p-4 shadow text-xs space-y-3" aria-label="Privacy & Differential Privacy Settings">
@@ -22,6 +22,14 @@ export const PrivacySettings = () => {
         <button onClick={()=> { if (localPass && setPassphrase) { setPassphrase(localPass); setLocalPass(''); } }} className="px-3 py-1 rounded bg-neuro-accent/20 hover:bg-neuro-accent/30">Apply</button>
       </div>
       <p className="text-[10px] text-gray-500">Demo DP adds Gaussian noise client-side. Not production-grade privacy.</p>
+      <div className="pt-2 border-t border-white/5 space-y-2">
+        <h4 className="font-semibold text-xs text-gray-300">AI Assistant</h4>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={!!aiConsent} onChange={e=> setAiConsent && setAiConsent(e.target.checked)} aria-label="Allow AI summarization" />
+          <span>Allow anonymous AI summaries</span>
+        </label>
+        <p className="text-[10px] text-gray-500 leading-snug">When enabled, only aggregated metrics (no raw keystrokes) are sent to the AI service to produce plain-language summaries. Disable to keep all processing local.</p>
+      </div>
     </div>
   );
 };
